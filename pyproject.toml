@@ -1,0 +1,31 @@
+[project]
+name = "QGISDresser"
+version = "0.0.0"
+authors = [
+    { name = "Shinsuke Nakamori", email = "phoca1024@gmail.com" },
+]
+description = "A QGIS plugin to dress up it's GUI."
+readme = "README.md"
+requires-python = ">=3.9"
+
+[dependency-groups]
+dev = [
+    "pyqt5-stubs>=5.15.6.0",
+    "pytest-cov>=6.0.0",
+    "pytest>=8.3.4",
+    "ruff>=0.8.1",
+]
+
+[tool.pytest.ini_options]
+pythonpath = "."
+addopts = ["--import-mode=importlib"]
+
+[tool.ruff]
+select = ["F", "E", "W", "B", "C90", "N", "I"]
+ignore = ["N802", "E501"]
+target-version = "py38"
+
+[tool.coverage.run]
+source = ['QGISDresser']
+omit = ['QGISDresser/mojxml/*']
+concurrency = ["thread"]
