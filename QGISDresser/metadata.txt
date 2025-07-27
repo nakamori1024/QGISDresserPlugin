@@ -1,0 +1,23 @@
+[general]
+name=QGISDresser
+version=0.1.0
+qgisMinimumVersion=3.28
+description=QGISDresser is a plugin to dress up QGIS GUI.
+author=Shinsuke Nakamori
+email=phoca1024@gmail.com
+
+about=This plugin enables to change the background image of QGIS GUI. You can select a image from preset, or local directory.
+
+tracker=https://github.com/nakamori1024/QGISDresserPlugin/issues
+repository=https://github.com/nakamori1024/QGISDresserPlugin
+
+hasProcessingProvider=no
+changelog=
+tags=gui
+
+homepage=https://github.com/nakamori1024/QGISDresserPlugin
+category=Plugins
+icon=icon.png
+experimental=False
+deprecated=False
+server=False
