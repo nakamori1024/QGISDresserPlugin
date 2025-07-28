@@ -94,6 +94,35 @@ class QGISDresserGUI(QDialog):
         resized_image = self._resize_image(mode="main", file_path=image_path)
         main_image = f"url({resized_image})"
 
+        style_dict = self._generate_style_dict(
+            char_color=char_color,
+            treeview_color=tree_color,
+            main_image=main_image,
+        )
+
+        return style_dict
+
+    def _generate_style_dict(
+        self,
+        char_color: str,
+        treeview_color: str,
+        main_color: str = "transparent",
+        main_image: str = "transparent",
+        main_position: str = "left",
+        button_color: str = "rgba(255, 255, 255, 0)",
+        button_image: str = "transparent",
+        button_position: str = "center",
+    ) -> dict:
+        """
+        Generate a style dictionary for the QGISDresser plugin dialog.
+        Arguments:
+            main_image (str): Path to the main background image.
+            char_color (str): Character color for the text.
+            treeview_color (str): Background color for the tree view.
+        Returns:
+            dict: A dictionary containing style properties for various widgets.
+        """
+        # Icons
         clicked_image: str = os.path.join(
             os.path.dirname(__file__), "images", "icon-check.png"
         ).replace("\\", "/")
@@ -106,11 +135,12 @@ class QGISDresserGUI(QDialog):
             os.path.dirname(__file__), "images", f"icon-arrow-down-{char_color}.svg"
         ).replace("\\", "/")
 
+        # Style dictionary
         style_dict = {
             "QMainWindow": {
-                "background-color": "transparent",
+                "background-color": main_color,
                 "background-image": main_image,
-                "background-position": "left",
+                "background-position": main_position,
                 "background-repeat": "no-repeat",
             },
             "QDockWidget": {
@@ -123,9 +153,9 @@ class QGISDresserGUI(QDialog):
             "QToolBar": {"background-color": "transparent"},
             "QToolButton": {
                 "color": char_color,
-                "background-color": "rgba(255, 255, 255, 0)",
-                "background-image": "transparent",
-                "background-position": "center",
+                "background-color": button_color,
+                "background-image": button_image,
+                "background-position": button_position,
             },
             "QToolButton:hover": {
                 "background-color": "rgba(230, 230, 230, 0.6)",
@@ -138,7 +168,7 @@ class QGISDresserGUI(QDialog):
             },
             "QTreeView": {
                 "color": char_color,
-                "background-color": tree_color,
+                "background-color": treeview_color,
             },
             "QTreeView:branch:selected:active": {
                 "background-color": "rgba(0, 105, 255, 1.0)",
@@ -233,63 +263,17 @@ class QGISDresserGUI(QDialog):
             mode="btn", property=properties["btn-image"]
         )
 
-        clicked_image: str = os.path.join(
-            os.path.dirname(__file__), "images", "icon-check.png"
-        ).replace("\\", "/")
+        style_dict = self._generate_style_dict(
+            char_color=properties["char-color"],
+            treeview_color=properties["treeview-color"],
+            main_color=properties["main-color"],
+            main_image=main_image,
+            main_position=properties["main-position"],
+            button_color=properties["btn-color"],
+            button_image=btn_image,
+            button_position=properties["btn-position"],
+        )
 
-        style_dict = {
-            "QMainWindow": {
-                "background-color": properties["main-color"],
-                "background-image": main_image,
-                "background-position": properties["main-position"],
-                "background-repeat": "no-repeat",
-            },
-            "QDockWidget": {
-                "color": properties["char-color"],
-            },
-            "QMenuBar": {
-                "color": properties["char-color"],
-                "background-color": "transparent",
-            },
-            "QToolBar": {"background-color": "transparent"},
-            "QToolButton": {
-                "background-color": properties["btn-color"],
-                "background-image": btn_image,
-                "background-position": properties["btn-position"],
-            },
-            "QToolButton:hover": {
-                "background-color": "rgba(255, 255, 255, 0.6)",
-            },
-            "QToolButton:pressed": {
-                "background-color": "rgba(128, 128, 128, 0.6)",
-            },
-            "QToolButton:checked": {
-                "background-color": "rgba(255, 255, 255, 0.6)",
-            },
-            "QTreeView": {
-                "color": properties["char-color"],
-                "background-color": "rgba(128, 128, 128, 0.6)",
-            },
-            "QTreeView:item": {
-                "color": properties["char-color"],
-            },
-            "QTreeView:indicator:checked": {
-                "background-color": "white",
-                "border": "1px solid gray",
-                "image": f"url({clicked_image})",
-            },
-            "QTreeView:indicator:unchecked": {
-                "background-color": "white",
-                "border": "1px solid gray",
-            },
-            "QLabel": {
-                "color": properties["char-color"],
-            },
-            "QLineEdit": {
-                "color": "black",
-                "background-color": "rgba(255, 255, 255, 0.9)",
-            },
-        }
         return style_dict
 
     def _image_url(self, file_name: str) -> str:
