@@ -4,7 +4,7 @@ version = "0.0.0"
 authors = [
     { name = "Shinsuke Nakamori", email = "phoca1024@gmail.com" },
 ]
-description = "A QGIS plugin to dress up it's GUI."
+description = "A QGIS plugin to dress up its GUI."
 readme = "README.md"
 requires-python = ">=3.9"
 
