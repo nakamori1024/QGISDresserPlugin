@@ -1,0 +1,46 @@
+name: Test
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  Test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        qgis_image_tag: [release-3_28]
+    env:
+      OS: ubuntu
+      QGIS_IMAGE_TAG: ${{ matrix.qgis_image_tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pull QGIS image
+        run: docker pull qgis/qgis:${{ matrix.qgis_image_tag }}
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+          enable-cache: true
+
+      - name: Export requirements.txt
+        run: |
+          uv export --extra dev --no-hashes > requirements.txt
+
+      - name: Run tests
+        run: >
+          docker run --rm --volume `pwd`:/app -w=/app qgis/qgis:${{ matrix.qgis_image_tag }} sh -c "
+            pip3 install -r requirements.txt &&
+            PYTHONPATH=/app xvfb-run -s '+extension GLX -screen 0 1024x768x24' pytest -v --cov --cov-report=xml --cov-report=term
+          "
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+          flags: unittests
+          env_vars: OS,QGIS_IMAGE_TAG
+          fail_ci_if_error: false
