@@ -28,7 +28,7 @@ PLUGIN_NAME = "QGISDresser"
 
 
 class QGISDresser:
-    """QGIS plugin for dressing up it's GUI."""
+    """QGIS plugin for dressing up its GUI."""
 
     def __init__(self, iface: QgisInterface):
         self.iface = iface
