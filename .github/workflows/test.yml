@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        qgis_image_tag: [release-3_22, release-3_28]
+        qgis_image_tag: [release-3_28]
     env:
       OS: ubuntu
       QGIS_IMAGE_TAG: ${{ matrix.qgis_image_tag }}
@@ -28,7 +28,7 @@ jobs:
 
       - name: Export requirements.txt
         run: |
-          uv export --extra dev > requirements.txt
+          uv export --extra dev --no-hashes > requirements.txt
 
       - name: Run tests
         run: >
