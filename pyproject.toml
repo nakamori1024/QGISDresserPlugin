@@ -1,6 +1,6 @@
 [project]
 name = "QGISDresser"
-version = "0.0.0"
+version = "0.1.0"
 authors = [
     { name = "Shinsuke Nakamori", email = "phoca1024@gmail.com" },
 ]

@@ -1,9 +1,5 @@
 """Tests for QGISDresser plugin"""
 
-from unittest.mock import MagicMock
-
-from qgis.core import QgsApplication
-
 from QGISDresser.plugin import QGISDresser
 
 
