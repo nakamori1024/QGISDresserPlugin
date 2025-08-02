@@ -12,6 +12,7 @@ tracker=https://github.com/nakamori1024/QGISDresserPlugin/issues
 repository=https://github.com/nakamori1024/QGISDresserPlugin
 
 hasProcessingProvider=no
+supportsQt6=True
 changelog=
 tags=gui
 

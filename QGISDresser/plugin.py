@@ -18,9 +18,9 @@
 
 import os
 
-from PyQt5.QtWidgets import QAction
 from qgis.gui import QgisInterface
 from qgis.PyQt.QtGui import QIcon
+from qgis.PyQt.QtWidgets import QAction
 
 from .plugin_dialog import QGISDresserGUI
 
