@@ -20,8 +20,8 @@ import os
 
 import yaml
 from PIL import Image
-from PyQt5.QtWidgets import QDialog, QMessageBox
 from qgis.PyQt import uic
+from qgis.PyQt.QtWidgets import QDialog, QMessageBox
 
 
 class QGISDresserGUI(QDialog):
