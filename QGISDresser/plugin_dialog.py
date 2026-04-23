@@ -18,296 +18,248 @@
 
 import os
 
-import yaml
-from PIL import Image
 from qgis.PyQt import uic
-from qgis.PyQt.QtWidgets import QDialog, QMessageBox
+from qgis.PyQt.QtWidgets import QDialog, QFileDialog, QColorDialog
+from qgis.PyQt.QtCore import QCoreApplication, pyqtSignal, QDir, QTimer, Qt
 
+from .qgd_props import QGISDresserProps
 
-class QGISDresserGUI(QDialog):
-    def __init__(self, iface):
+class QGISDresserDialog(QDialog):
+    applyRequested = pyqtSignal()
+
+    def __init__(self):
         super().__init__()
-        self.iface = iface
-        self.ui = uic.loadUi(
+        self.dialog = uic.loadUi(
             os.path.join(os.path.dirname(__file__), "plugin_dialog.ui"), self
         )
+        if self.dialog is None:
+            raise RuntimeError("Failed loading UI file.")
+        self._presets = self._get_presets()
+        self.btnAdvancedToggle.setChecked(False)
+        # initializes status
+        self._on_advanced()
+        self._init_widgets()
+        self._connect_signals()
 
-        # connect
-        self.ui.buttonBox.rejected.connect(self.close)
-        self.ui.buttonBox.accepted.connect(self.accept_style)
-        self.ui.pushButtonApply.clicked.connect(self.apply_style)
-        self.ui.radioButtonPreset.toggled.connect(self.change_groupbox_status)
+    def _init_widgets(self):
+        self.cmbPresets.clear()
+        self.cmbPresets.addItem("","")
+        if self._presets is not None:
+            for key, value in self._presets.items():
+                if "title" in value:
+                    title = value["title"]
+                else:
+                    title = key
+                self.cmbPresets.addItem(self.tr(title), key)
+        self.cmbMainScale.clear()
+        self.cmbMainScale.addItem(self.tr("None"), "none")
+        self.cmbMainScale.addItem(self.tr("Fit (Smaller)"), "fit_smaller")
+        self.cmbMainScale.addItem(self.tr("Fit (Larger)"), "fit_larger")
+        self.cmbMainScale.addItem(self.tr("Shrink (Smaller)"), "shrink_smaller")
+        self.cmbMainScale.addItem(self.tr("Shrink (Larger)"), "shrink_larger")
+        self.cmbMainScale.addItem(self.tr("Stretch"), "stretch")
+        self.cmbMainRepeat.clear()
+        self.cmbMainRepeat.addItem(self.tr("None"), "no-repeat")
+        self.cmbMainRepeat.addItem(self.tr("X"), "repeat-x")
+        self.cmbMainRepeat.addItem(self.tr("Y"), "repeat-y")
+        self.cmbMainRepeat.addItem(self.tr("X/Y"), "repeat")
+        self.cmbMainPositionX.clear()
+        self.cmbMainPositionX.addItem(self.tr("Left"), "left")
+        self.cmbMainPositionX.addItem(self.tr("Center"), "center")
+        self.cmbMainPositionX.addItem(self.tr("Right"), "right")
+        self.cmbMainPositionY.clear()
+        self.cmbMainPositionY.addItem(self.tr("Top"), "top")
+        self.cmbMainPositionY.addItem(self.tr("Middle"), "middle")
+        self.cmbMainPositionY.addItem(self.tr("Bottom"), "bottom")
 
-        # load
-        self.set_style_list()
-        self.change_groupbox_status()
-
-    def accept_style(self):
-        self.apply_style()
-        self.close()
-
-    def apply_style(self):
-        if self.ui.radioButtonPreset.isChecked():
-            style_name: str = self.ui.comboBoxPreset.currentText()
-
-            if style_name == "default":
-                self.iface.mainWindow().setStyleSheet("")
-                return
-
-            style_dict: dict = self._get_style_properties(style_name)
+    def _on_advanced(self):
+        checked = self.btnAdvancedToggle.isChecked()
+        # changes button
+        if checked:
+            self.btnAdvancedToggle.setArrowType(Qt.ArrowType.DownArrow)
         else:
-            image_path: str = self.ui.qgsFileWidgetImage.filePath()
+            self.btnAdvancedToggle.setArrowType(Qt.ArrowType.RightArrow)
+        self.btnAdvancedToggle.setText(self.tr("Advanced Settings"))
+        # shows/hide advanced settings
+        self.groupAdvanced.setVisible(checked)
+        self.btnAdvancedToggle.updateGeometry()
+        self.updateGeometry()
+        layout = self.layout()
+        if layout is not None:
+            layout.invalidate()
+            layout.activate()
+        QTimer.singleShot(0, self._adjust_dialog_size)
 
-            if self.ui.radioButtonFontBlack.isChecked():
-                char_color: str = "black"
-            else:
-                char_color: str = "white"
+    def _adjust_dialog_size(self):
+        w = self.width()
+        h = self.sizeHint().height()
+        self.setMinimumSize(0, 0)
+        self.adjustSize()
+        self.resize(w, h)
 
-            if not os.path.exists(image_path):
-                QMessageBox.information(self, "Message", "Image file not found.")
-                return
-
-            style_dict: dict = self._generate_image_properties(image_path, char_color)
-
-        style_str: str = self._generate_stylesheet(style_dict)
-        self.iface.mainWindow().setStyleSheet(style_str)
-
-    def change_groupbox_status(self):
-        checked = self.ui.radioButtonPreset.isChecked()
-
-        self.ui.groupBoxPreset.setEnabled(checked)
-        self.ui.groupBoxImage.setEnabled(not checked)
-
-    def set_style_list(self):
-        self.ui.comboBoxPreset.clear()
-        self.ui.comboBoxPreset.addItem("default")
-
-        style_list: list = self._load_list()
-        self.ui.comboBoxPreset.addItems(style_list)
-
-    def _generate_image_properties(self, image_path: str, char_color: str) -> dict:
-        if char_color == "black":
-            tree_color = "rgba(230, 230, 230, 0.6)"
-        else:
-            tree_color = "rgba(64, 64, 64, 0.6)"
-
-        resized_image = self._resize_image(mode="main", file_path=image_path)
-        main_image = f"url({resized_image})"
-
-        style_dict = self._generate_style_dict(
-            char_color=char_color,
-            treeview_color=tree_color,
-            main_image=main_image,
+    def _connect_signals(self):
+        self.cmbPresets.currentIndexChanged.connect(self.on_preset)
+        self.btnPresets.clicked.connect(self.on_preset)
+        self.btnMainImage.clicked.connect(self.on_browse_image)
+        self.btnAdvancedToggle.toggled.connect(self._on_advanced)
+        self.btnTextColor.clicked.connect(
+            lambda: self.select_color_for(self.txtTextColor)
         )
+        self.btnMenubarBackground.clicked.connect(
+            lambda: self.select_color_for(self.txtMenubarBackground)
+        )
+        self.btnTreeviewBackground.clicked.connect(
+            lambda: self.select_color_for(self.txtTreeviewBackground)
+        )
+        self.btnMainBackground.clicked.connect(
+            lambda: self.select_color_for(self.txtMainBackground)
+        )
+        self.btnButtonBackground.clicked.connect(
+            lambda: self.select_color_for(self.txtButtonBackground)
+        )
+        self.btnOk.clicked.connect(self.on_ok)
+        self.btnCancel.clicked.connect(self.dialog.reject)
+        self.btnApply.clicked.connect(self.on_apply)
+        self.cmbMainScale.currentTextChanged.connect(self.on_style_changed)
+        self.cmbMainRepeat.currentTextChanged.connect(self.on_style_changed)
+        self.cmbMainPositionX.currentTextChanged.connect(self.on_style_changed)
+        self.cmbMainPositionY.currentTextChanged.connect(self.on_style_changed)
 
-        return style_dict
+    def _init_values(self):
+        prop = QGISDresserProps()
+        self.txtMainImage.setText(prop.main_image)
+        self._set_combo_data(self.cmbMainScale, prop.main_scale)
+        self._set_combo_data(self.cmbMainRepeat, prop.main_repeat)
+        self._set_combo_data(self.cmbMainPositionX, prop.main_position_x)
+        self._set_combo_data(self.cmbMainPositionY, prop.main_position_y)
+        self.txtTextColor.setText(prop.text_color)
+        self.txtMainBackground.setText(prop.main_background)
+        self.txtMenubarBackground.setText(prop.menubar_background)
+        self.txtTreeviewBackground.setText(prop.treeview_background)
+        self.txtButtonBackground.setText(prop.button_background)
+        # advanced button
+        self.btnAdvancedToggle.setChecked(False)
 
-    def _generate_style_dict(
-        self,
-        char_color: str,
-        treeview_color: str,
-        main_color: str = "transparent",
-        main_image: str = "transparent",
-        main_position: str = "left",
-        button_color: str = "rgba(255, 255, 255, 0)",
-        button_image: str = "transparent",
-        button_position: str = "center",
-    ) -> dict:
-        """
-        Generate a style dictionary for the QGISDresser plugin dialog.
-        Arguments:
-            main_image (str): Path to the main background image.
-            char_color (str): Character color for the text.
-            treeview_color (str): Background color for the tree view.
-        Returns:
-            dict: A dictionary containing style properties for various widgets.
-        """
-        # Icons
-        clicked_image: str = os.path.join(
-            os.path.dirname(__file__), "images", "icon-check.png"
-        ).replace("\\", "/")
-        toggle_image_closed: str = os.path.join(
-            os.path.dirname(__file__),
-            "images",
-            f"icon-arrow-right-{char_color}.svg",
-        ).replace("\\", "/")
-        toggle_image_opened: str = os.path.join(
-            os.path.dirname(__file__), "images", f"icon-arrow-down-{char_color}.svg"
-        ).replace("\\", "/")
+    def _update_values(self, data):
+        self.txtMainImage.setText(data["main_image"])
+        self._set_combo_data(self.cmbMainScale, data["main_scale"])
+        self._set_combo_data(self.cmbMainRepeat, data["main_repeat"])
+        self._set_combo_data(self.cmbMainPositionX, data["main_position_x"])
+        self._set_combo_data(self.cmbMainPositionY, data["main_position_y"])
+        self.txtTextColor.setText(data["text_color"])
+        self.txtMainBackground.setText(data["main_background"])
+        self.txtMenubarBackground.setText(data["menubar_background"])
+        self.txtTreeviewBackground.setText(data["treeview_background"])
+        self.txtButtonBackground.setText(data["button_background"])
 
-        # Style dictionary
-        style_dict = {
-            "QMainWindow": {
-                "background-color": main_color,
-                "background-image": main_image,
-                "background-position": main_position,
-                "background-repeat": "no-repeat",
-            },
-            "QDockWidget": {
-                "color": char_color,
-            },
-            "QMenuBar": {
-                "color": char_color,
-                "background-color": "transparent",
-            },
-            "QToolBar": {"background-color": "transparent"},
-            "QToolButton": {
-                "color": char_color,
-                "background-color": button_color,
-                "background-image": button_image,
-                "background-position": button_position,
-            },
-            "QToolButton:hover": {
-                "background-color": "rgba(230, 230, 230, 0.6)",
-            },
-            "QToolButton:pressed": {
-                "background-color": "rgba(220, 220, 220, 0.6)",
-            },
-            "QToolButton:checked": {
-                "background-color": "rgba(220, 220, 220, 0.6)",
-            },
-            "QTreeView": {
-                "color": char_color,
-                "background-color": treeview_color,
-            },
-            "QTreeView:branch:selected:active": {
-                "background-color": "rgba(0, 105, 255, 1.0)",
-            },
-            "QTreeView:branch:selected:!active": {
-                "background-color": "rgba(200, 200, 200, 1.0)",
-            },
-            "QTreeView:branch:has-children:closed": {
-                "image": f"url({toggle_image_closed})",
-            },
-            "QTreeView:branch:open:has-children": {
-                "image": f"url({toggle_image_opened})",
-            },
-            "QTreeView:item": {
-                "color": char_color,
-            },
-            "QTreeView:item:selected:active": {
-                "color": "white",
-                "background-color": "rgba(0, 105, 255, 1.0)",
-            },
-            "QTreeView:item:selected:!active": {
-                "background-color": "rgba(200, 200, 200, 1.0)",
-            },
-            "QTreeView:indicator:checked": {
-                "background-color": "white",
-                "border": "1px solid gray",
-                "image": f"url({clicked_image})",
-            },
-            "QTreeView:indicator:unchecked": {
-                "background-color": "white",
-                "border": "1px solid gray",
-            },
-            "QLabel": {
-                "color": char_color,
-            },
-            "QLineEdit": {
-                "color": "black",
-                "background-color": "rgba(255, 255, 255, 0.9)",
-            },
-            "QComboBox": {
-                "color": "black",
-                "background-color": "rgba(255, 255, 255, 0.9)",
-            },
-            "QDoubleSpinBox": {
-                "color": "black",
-                "background-color": "rgba(255, 255, 255, 0.9)",
-            },
-            "QCheckBox": {
-                "color": char_color,
-                "background-color": "transparent",
-            },
+    # Called when the dialog shown
+    def showEvent(self, event):
+        super().showEvent(event)
+        self.cmbPresets.setCurrentIndex(-1)
+        self._init_values()
+
+    def _set_combo_data(self, combo, value):
+        index = combo.findData(value)
+        if index != -1:
+            combo.setCurrentIndex(index)
+
+    def _get_combo_data(self, combo):
+        data = combo.currentData()
+        return data if data is not None else ""
+
+    def tr(self, message):
+        return QCoreApplication.translate("QGISDresserDialog", message)
+
+    def on_preset(self):
+        key = self._get_combo_data(self.cmbPresets)
+        if not key in self._presets:
+            return
+        preset = self._presets[key]
+        if preset is None:
+            return
+        self._update_values(preset)
+
+    def on_browse_image(self):
+        # gets current path -> cur
+        txt = self.txtMainImage.text()
+        if os.path.isdir(txt):
+            cur = txt
+        elif os.path.isfile(txt):
+            cur = os.path.dirname(txt)
+        else:
+            cur = QDir.homePath()
+        # opens filedialog
+        path, _ = QFileDialog.getOpenFileName(
+            self.dialog,
+            self.tr("Choose an image"),
+            cur,
+            self.tr("Images (*.png *.jpg *.jpeg *.bmp *.webp)")
+        )
+        if path:
+            self.txtMainImage.setText(path)
+
+    def select_color_for(self, line_edit):
+        from qgis.PyQt.QtGui import QColor
+        color = QColorDialog.getColor(
+            parent=self.dialog,
+            options=QColorDialog.ColorDialogOption.ShowAlphaChannel
+        )
+        if color.isValid():
+            line_edit.setText(color.name(QColor.NameFormat.HexArgb))  # 例: #ff0000
+
+    def on_style_changed(self, _value):
+        # コンボ変更時の処理
+        # print("スタイル設定が変更されました")
+        pass
+
+    def on_apply(self):
+        prop = QGISDresserProps()
+        prop.main_image = self.txtMainImage.text()
+        prop.main_scale = self._get_combo_data(self.cmbMainScale)
+        prop.main_repeat = self._get_combo_data(self.cmbMainRepeat)
+        prop.main_position_x = self._get_combo_data(self.cmbMainPositionX)
+        prop.main_position_y = self._get_combo_data(self.cmbMainPositionY)
+        prop.text_color = self.txtTextColor.text()
+        prop.menubar_background = self.txtMenubarBackground.text()
+        prop.treeview_background = self.txtTreeviewBackground.text()
+        prop.main_background = self.txtMainBackground.text()
+        prop.button_background = self.txtButtonBackground.text()
+        self.applyRequested.emit()
+        # clears preset selection.
+        self.cmbPresets.setCurrentIndex(-1)
+
+    def on_ok(self):
+        self.on_apply()
+        self.dialog.accept()
+
+    def collect_settings(self):
+        return {
+            "main_image": self.txtMainImage.text(),
+            "main_scale": self.cmbMainScale.currentData(),
+            "main_repeat": self.cmbMainRepeat.currentData(),
+            "main_position_x": self.cmbMainPositionX.currentData(),
+            "main_position_y": self.cmbMainPositionY.currentData(),
+            "text_color": self.txtTextColor.text(),
+            "menubar_background": self.txtMenubarBackground.text(),
+            "treeview_background": self.txtTreeviewBackground.text(),
+            "main_background": self.txtMainBackground.text(),
+            "button_background": self.txtButtonBackground.text(),
         }
-
-        return style_dict
-
-    def _generate_stylesheet(self, styles: dict) -> str:
-        stylesheet = ""
-        for selector, properties in styles.items():
-            stylesheet += f"{selector} {{\n"
-            for prop, value in properties.items():
-                stylesheet += f"    {prop}: {value};\n"
-            stylesheet += "}\n"
-        return stylesheet
-
-    def _get_image_property(self, mode: str, property: str) -> str:
-        file_path = os.path.join(
-            os.path.dirname(__file__), "preset", "images", property
-        )
-
-        if os.path.exists(file_path):
-            resized_image = self._resize_image(mode=mode, file_path=file_path)
-            return_image = f"url({resized_image})"
-        else:
-            return_image = property
-
-        return return_image
-
-    def _get_style_properties(self, style_name: str) -> dict:
-        yaml_file = os.path.join(os.path.dirname(__file__), "preset", "list.yml")
-        with open(yaml_file, "r", encoding="utf-8") as file:
-            data = yaml.safe_load(file)
-
-        styles: list = data.get("styles", [])
-        properties: dict = next(
-            (item for item in styles if item["name"] == style_name), {}
-        )
-
-        main_image: str = self._get_image_property(
-            mode="main", property=properties["main-image"]
-        )
-        btn_image: str = self._get_image_property(
-            mode="btn", property=properties["btn-image"]
-        )
-
-        style_dict = self._generate_style_dict(
-            char_color=properties["char-color"],
-            treeview_color=properties["treeview-color"],
-            main_color=properties["main-color"],
-            main_image=main_image,
-            main_position=properties["main-position"],
-            button_color=properties["btn-color"],
-            button_image=btn_image,
-            button_position=properties["btn-position"],
-        )
-
-        return style_dict
-
-    def _image_url(self, file_name: str) -> str:
-        file_path = os.path.join(
-            os.path.dirname(__file__), "preset", "images", file_name
-        )
-        image_url = f"url({file_path})"
-        return image_url
-
-    def _load_list(self) -> list:
-        preset_list = []
-
-        yaml_file = os.path.join(os.path.dirname(__file__), "preset", "list.yml")
-        with open(yaml_file, "r", encoding="utf-8") as file:
-            data = yaml.safe_load(file)
-
-        styles: list = data.get("styles", [])
-        for style in styles:
-            preset_list.append(style["name"])
-
-        return preset_list
-
-    def _resize_image(self, mode: str, file_path: str) -> str:
-        # current window size
-        size = self.iface.mainWindow().size()
-
-        # get image
-        image = Image.open(file_path)
-
-        # resize
-        resized_image = image.resize((size.width(), size.height()))
-        resized_path = os.path.join(
-            os.path.dirname(__file__), f"image_{mode}.png"
-        ).replace("\\", "/")
-        resized_image.save(resized_path)
-
-        return resized_path
+    #
+    def _get_presets(self) -> dict:
+        import json
+        json_path = os.path.join(os.path.dirname(__file__), "preset", "list.json")
+        with open(json_path, "r", encoding="utf-8") as file:
+            data = json.load(file)
+        if data is None:
+            return None
+        # filenaem to full path
+        for key in data.keys():
+            style = data[key]
+            if style is not None:
+                for subkey in ("main_image", "button_image"):
+                    if subkey in style and style[subkey] is not None and style[subkey] != "":
+                        path = os.path.join(os.path.dirname(__file__), "preset", "images", style[subkey])
+                        if os.path.isfile(path):
+                            style[subkey] = path
+        return data
